@@ -36,23 +36,25 @@ namespace bgfx { namespace gl
 		uint32_t m_sub;
 	};
 
-	static const PrimInfo s_primInfo[] =
-	{
-		{ GL_TRIANGLES,      3, 3, 0 },
-		{ GL_TRIANGLE_STRIP, 3, 1, 2 },
-		{ GL_LINES,          2, 2, 0 },
-		{ GL_LINE_STRIP,     2, 1, 1 },
-		{ GL_POINTS,         1, 1, 0 },
-	};
+    static const PrimInfo s_primInfo[] =
+    {
+        { GL_TRIANGLES,      3, 3, 0 },
+        { GL_TRIANGLE_STRIP, 3, 1, 2 },
+        { GL_LINES,          2, 2, 0 },
+        { GL_LINE_STRIP,     2, 1, 1 },
+        { GL_POINTS,         1, 1, 0 },
+        { GL_TRIANGLE_FAN,   3, 1, 2 },
+    };
 
-	static const char* s_primName[] =
-	{
-		"TriList",
-		"TriStrip",
-		"Line",
-		"LineStrip",
-		"Point",
-	};
+    static const char* s_primName[] =
+    {
+        "TriList",
+        "TriStrip",
+        "Line",
+        "LineStrip",
+        "Point",
+        "TriFan",
+    };
 
 	static const char* s_attribName[] =
 	{
