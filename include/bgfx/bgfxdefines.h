@@ -64,6 +64,7 @@
 #define BGFX_STATE_PT_LINES                UINT64_C(0x0002000000000000) //!< Lines.
 #define BGFX_STATE_PT_LINESTRIP            UINT64_C(0x0003000000000000) //!< Line strip.
 #define BGFX_STATE_PT_POINTS               UINT64_C(0x0004000000000000) //!< Points.
+#define BGFX_STATE_PT_TRIFAN               UINT64_C(0x0005000000000000) //!< Triangle fan.
 #define BGFX_STATE_PT_SHIFT                48                           //!< Primitive type bit shift.
 #define BGFX_STATE_PT_MASK                 UINT64_C(0x0007000000000000) //!< Primitive type bit mask.
 
