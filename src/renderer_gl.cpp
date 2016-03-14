@@ -2702,7 +2702,7 @@ namespace bgfx { namespace gl
 				) );
 		}
 
-		uint32_t setFrameBuffer(FrameBufferHandle _fbh, uint32_t _height, uint16_t _discard = BGFX_CLEAR_NONE, bool _msaa = true)
+		uint32_t setFrameBuffer(FrameBufferHandle _fbh, uint32_t _height, uint16_t _discard = BGFX_CLEAR_NONE, bool _msaa = false)
 		{
 			if (isValid(m_fbh)
 			&&  m_fbh.idx != _fbh.idx)
