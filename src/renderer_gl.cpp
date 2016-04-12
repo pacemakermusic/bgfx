@@ -2409,7 +2409,15 @@ namespace bgfx { namespace gl
 
 		void setMarker(const char* _marker, uint32_t _size) BX_OVERRIDE
 		{
-			GL_CHECK(glInsertEventMarker(_size, _marker) );
+            if (strcmp(_marker, "pop"))
+            {
+                GL_CHECK(glPushGroupMarker(0, _marker) );
+                //GL_CHECK(glInsertEventMarker(_size, _marker) );
+            }
+            else
+            {
+                GL_CHECK(glPopGroupMarker() );
+            }
 		}
 
 		void submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter) BX_OVERRIDE;
