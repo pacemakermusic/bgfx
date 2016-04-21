@@ -1813,13 +1813,14 @@ namespace bgfx { namespace gl
 					| BGFX_CAPS_FORMAT_TEXTURE_CUBE
 					: BGFX_CAPS_FORMAT_TEXTURE_NONE
 					;
-
+#if CRASH_ON_OLD_IOS_DEVICES
 				supported |= isTextureFormatValid(TextureFormat::Enum(ii), true)
 					? BGFX_CAPS_FORMAT_TEXTURE_2D_SRGB
 					| BGFX_CAPS_FORMAT_TEXTURE_3D_SRGB
 					| BGFX_CAPS_FORMAT_TEXTURE_CUBE_SRGB
 					: BGFX_CAPS_FORMAT_TEXTURE_NONE
 					;
+#endif
 
 				supported |= isTextureFormatValid(TextureFormat::Enum(ii), false, true)
 					? BGFX_CAPS_FORMAT_TEXTURE_MIP_AUTOGEN
