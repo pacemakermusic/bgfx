@@ -56,7 +56,6 @@ Known issues(driver problems??):
 
  - finish savescreenshot with screenshotbegin/end
 
- - support multiple windows: 22-windows
  - multithreading with multiple commandbuffer
 
  - compute and drawindirect: 24-nbody (needs compute shaders)
@@ -349,15 +348,11 @@ namespace bgfx { namespace mtl
 	struct RendererContextMtl : public RendererContextI
 	{
 		RendererContextMtl()
-			: m_metalLayer(NULL)
-			, m_backBufferPixelFormatHash(0)
-			, m_maxAnisotropy(1)
-			, m_bufferIndex(0)
-			, m_numWindows(1)
+			: m_bufferIndex(0)
+			, m_numWindows(0)
 			, m_rtMsaa(false)
 			, m_capture(NULL)
 			, m_captureSize(0)
-			, m_drawable(NULL)
 			, m_saveScreenshot(false)
 		{
 		}
@@ -374,56 +369,20 @@ namespace bgfx { namespace mtl
 			memset(m_uniforms, 0, sizeof(m_uniforms) );
 			memset(&m_resolution, 0, sizeof(m_resolution) );
 
-			if (NULL != NSClassFromString(@"MTKView") )
+			m_device = (id<MTLDevice>)g_platformData.context;
+
+			if (NULL == m_device)
 			{
-				MTKView *view = (MTKView *)g_platformData.nwh;
-				if (NULL != view && [view isKindOfClass:NSClassFromString(@"MTKView")])
-				{
-					m_metalLayer = (CAMetalLayer *)view.layer;
-				}
+				m_device = MTLCreateSystemDefaultDevice();
 			}
 
-			if (NULL != NSClassFromString(@"CAMetalLayer") )
-			{
-                if (NULL == m_metalLayer)
-#if BX_PLATFORM_IOS
-				{
-					CAMetalLayer* metalLayer = (CAMetalLayer*)g_platformData.nwh;
-					if (NULL == metalLayer
-					|| ![metalLayer isKindOfClass:NSClassFromString(@"CAMetalLayer")])
-					{
-						BX_WARN(NULL != m_device, "Unable to create Metal device. Please set platform data window to a CAMetalLayer");
-						return false;
-					}
-
-					m_metalLayer = metalLayer;
-				}
-#elif BX_PLATFORM_OSX
-				{
-					NSWindow* nsWindow = (NSWindow*)g_platformData.nwh;
-					[nsWindow.contentView setWantsLayer:YES];
-					m_metalLayer = [CAMetalLayer layer];
-					[nsWindow.contentView setLayer:m_metalLayer];
-				}
-#endif // BX_PLATFORM_*
-
-				m_device = (id<MTLDevice>)g_platformData.context;
-
-				if (NULL == m_device)
-				{
-					m_device = MTLCreateSystemDefaultDevice();
-				}
-			}
-
-			if (NULL == m_device
-			||  NULL == m_metalLayer)
+			if (NULL == m_device)
 			{
 				BX_WARN(NULL != m_device, "Unable to create Metal device.");
 				return false;
 			}
 
-			m_metalLayer.device      = m_device;
-			m_metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+			createFrameBuffer(m_fbh, g_platformData.nwh, 0, 0, TextureFormat::D16);
 
 			m_cmd.init(m_device);
 			BGFX_FATAL(NULL != m_cmd.m_commandQueue, Fatal::UnableToInitialize, "Unable to create Metal device.");
@@ -473,7 +432,7 @@ namespace bgfx { namespace mtl
 			m_screenshotBlitProgram.create(&m_screenshotBlitProgramVsh, &m_screenshotBlitProgramFsh);
 
 			reset(m_renderPipelineDescriptor);
-			m_renderPipelineDescriptor.colorAttachments[0].pixelFormat = m_metalLayer.pixelFormat;
+			m_renderPipelineDescriptor.colorAttachments[0].pixelFormat = m_mainFrameBuffer.m_swapChain->m_metalLayer.pixelFormat;
 			m_renderPipelineDescriptor.vertexFunction = m_screenshotBlitProgram.m_vsh->m_function;
 			m_renderPipelineDescriptor.fragmentFunction = m_screenshotBlitProgram.m_fsh->m_function;
 			m_screenshotBlitRenderPipelineState = m_device.newRenderPipelineStateWithDescriptor(m_renderPipelineDescriptor);
@@ -495,8 +454,8 @@ namespace bgfx { namespace mtl
 				| BGFX_CAPS_OCCLUSION_QUERY
 				| BGFX_CAPS_ALPHA_TO_COVERAGE
 				| BGFX_CAPS_TEXTURE_2D_ARRAY // supported on all platforms
+				| BGFX_CAPS_SWAP_CHAIN
 				);
-
 			if (BX_ENABLED(BX_PLATFORM_IOS) )
 			{
 				if (iOSVersionEqualOrGreater("9.0.0") )
@@ -669,10 +628,10 @@ namespace bgfx { namespace mtl
 			MTL_RELEASE(m_textureDescriptor);
 			MTL_RELEASE(m_samplerDescriptor);
 
-			MTL_RELEASE(m_backBufferDepth);
+			MTL_RELEASE(m_mainFrameBuffer.m_swapChain->m_backBufferDepth);
 			if (BX_ENABLED(BX_PLATFORM_IOS) )
 			{
-				MTL_RELEASE(m_backBufferStencil);
+				MTL_RELEASE(m_mainFrameBuffer.m_swapChain->m_backBufferStencil);
 			}
 
 			for (uint8_t i=0; i < MTL_MAX_FRAMES_IN_FLIGHT; ++i)
@@ -865,7 +824,15 @@ namespace bgfx { namespace mtl
 		{
 			uint16_t denseIdx = m_numWindows++;
 			m_windows[denseIdx] = _handle;
-			m_frameBuffers[_handle.idx].create(denseIdx, _nwh, _width, _height, _depthFormat);
+			if (!isValid(_handle))
+			{
+				m_mainFrameBuffer.create(denseIdx, _nwh, _width, _height, _depthFormat);
+			}
+			else
+			{
+				m_frameBuffers[_handle.idx].create(denseIdx, _nwh, _width, _height, _depthFormat);
+				m_frameBuffers[_handle.idx].m_swapChain->resize(m_frameBuffers[_handle.idx], _width, _height, 0);
+			}
 		}
 
 		void destroyFrameBuffer(FrameBufferHandle _handle) BX_OVERRIDE
@@ -1068,36 +1035,24 @@ namespace bgfx { namespace mtl
 				return;
 			}
 
-			// Present and commit the command buffer
-			if ( NULL != m_drawable)
+			for (uint32_t ii = 0, num = m_numWindows; ii < num; ++ii)
 			{
-				m_commandBuffer.presentDrawable(m_drawable);
-				MTL_RELEASE(m_drawable);
+				FrameBufferMtl& frameBuffer = ii == 0 ? m_mainFrameBuffer : m_frameBuffers[m_windows[ii].idx];
+				if (NULL != frameBuffer.m_swapChain &&
+					frameBuffer.m_swapChain->m_drawable)
+				{
+					m_commandBuffer.presentDrawable(frameBuffer.m_swapChain->m_drawable);
+					MTL_RELEASE(frameBuffer.m_swapChain->m_drawable);
+				}
 			}
 
 			m_cmd.kick(true);
 			m_commandBuffer = 0;
-
-			//TODO: support multiple windows on OSX
-			/*
-			   if (m_flip)
-			   {
-			   for (uint32_t ii = 1, num = m_numWindows; ii < num; ++ii)
-			   {
-			   m_glctx.swap(m_frameBuffers[m_windows[ii].idx].m_swapChain);
-			   }
-
-			   if (!m_ovr.swap(_hmd) )
-			   {
-			   m_glctx.swap();
-			   }
-			   }
-			 */
 		}
 
 		void updateResolution(const Resolution& _resolution)
 		{
-			m_maxAnisotropy = !!(_resolution.m_flags & BGFX_RESET_MAXANISOTROPY)
+			m_mainFrameBuffer.m_swapChain->m_maxAnisotropy = !!(_resolution.m_flags & BGFX_RESET_MAXANISOTROPY)
 				? 16
 				: 1
 				;
@@ -1114,72 +1069,12 @@ namespace bgfx { namespace mtl
 				||  m_resolution.m_height           !=  _resolution.m_height
 				|| (m_resolution.m_flags&maskFlags) != (_resolution.m_flags&maskFlags) )
 			{
-				int sampleCount = s_msaa[(_resolution.m_flags&BGFX_RESET_MSAA_MASK)>>BGFX_RESET_MSAA_SHIFT];
-
-				MTLPixelFormat prevMetalLayerPixelFormat = m_metalLayer.pixelFormat;
-
-				m_metalLayer.drawableSize = CGSizeMake(_resolution.m_width, _resolution.m_height);
-				m_metalLayer.pixelFormat = (m_resolution.m_flags & BGFX_RESET_SRGB_BACKBUFFER)
-								? MTLPixelFormatBGRA8Unorm_sRGB
-								: MTLPixelFormatBGRA8Unorm
-								;
+				MTLPixelFormat prevMetalLayerPixelFormat = m_mainFrameBuffer.m_swapChain->m_metalLayer.pixelFormat;
 
 				m_resolution = _resolution;
 				m_resolution.m_flags &= ~BGFX_RESET_INTERNAL_FORCE;
 
-				m_textureDescriptor.textureType = sampleCount > 1 ? MTLTextureType2DMultisample : MTLTextureType2D;
-
-				if (m_hasPixelFormatDepth32Float_Stencil8)
-					m_textureDescriptor.pixelFormat = MTLPixelFormatDepth32Float_Stencil8;
-				else
-					m_textureDescriptor.pixelFormat = MTLPixelFormatDepth32Float;
-
-				m_textureDescriptor.width  = _resolution.m_width;
-				m_textureDescriptor.height = _resolution.m_height;
-				m_textureDescriptor.depth  = 1;
-				m_textureDescriptor.mipmapLevelCount = 1;
-				m_textureDescriptor.sampleCount = sampleCount;
-				m_textureDescriptor.arrayLength = 1;
-				if ( m_iOS9Runtime || m_macOS11Runtime )
-				{
-					m_textureDescriptor.cpuCacheMode = MTLCPUCacheModeDefaultCache;
-					m_textureDescriptor.storageMode  = MTLStorageModePrivate;
-					m_textureDescriptor.usage		 = MTLTextureUsageRenderTarget;
-				}
-
-				if (NULL != m_backBufferDepth)
-				{
-					release(m_backBufferDepth);
-				}
-				m_backBufferDepth   = m_device.newTextureWithDescriptor(m_textureDescriptor);
-
-
-				if (m_hasPixelFormatDepth32Float_Stencil8)
-					m_backBufferStencil = m_backBufferDepth;
-				else
-				{
-					m_textureDescriptor.pixelFormat = MTLPixelFormatStencil8;
-					m_backBufferStencil   = m_device.newTextureWithDescriptor(m_textureDescriptor);
-				}
-
-				if ( sampleCount > 1 )
-				{
-					if (NULL != m_backBufferColorMSAA)
-					{
-						release(m_backBufferColorMSAA);
-					}
-					m_textureDescriptor.pixelFormat = m_metalLayer.pixelFormat;
-					m_backBufferColorMSAA   = m_device.newTextureWithDescriptor(m_textureDescriptor);
-				}
-
-				bx::HashMurmur2A murmur;
-				murmur.begin();
-				murmur.add(1);
-				murmur.add((uint32_t)m_metalLayer.pixelFormat);
-				murmur.add((uint32_t)m_backBufferDepth.pixelFormat());
-				murmur.add((uint32_t)m_backBufferStencil.pixelFormat());
-				murmur.add((uint32_t)sampleCount);
-				m_backBufferPixelFormatHash = murmur.end();
+				m_mainFrameBuffer.m_swapChain->resize(m_mainFrameBuffer, _resolution.m_width, _resolution.m_height, _resolution.m_flags);
 
 				for (uint32_t ii = 0; ii < BX_COUNTOF(m_frameBuffers); ++ii)
 				{
@@ -1191,11 +1086,11 @@ namespace bgfx { namespace mtl
 				m_textVideoMem.resize(false, _resolution.m_width, _resolution.m_height);
 				m_textVideoMem.clear();
 
-				if ( prevMetalLayerPixelFormat != m_metalLayer.pixelFormat)
+				if ( prevMetalLayerPixelFormat != m_mainFrameBuffer.m_swapChain->m_metalLayer.pixelFormat)
 				{
 					MTL_RELEASE(m_screenshotBlitRenderPipelineState)
 					reset(m_renderPipelineDescriptor);
-					m_renderPipelineDescriptor.colorAttachments[0].pixelFormat = m_metalLayer.pixelFormat;
+					m_renderPipelineDescriptor.colorAttachments[0].pixelFormat = m_mainFrameBuffer.m_swapChain->m_metalLayer.pixelFormat;
 					m_renderPipelineDescriptor.vertexFunction = m_screenshotBlitProgram.m_vsh->m_function;
 					m_renderPipelineDescriptor.fragmentFunction = m_screenshotBlitProgram.m_fsh->m_function;
 					m_screenshotBlitRenderPipelineState = m_device.newRenderPipelineStateWithDescriptor(m_renderPipelineDescriptor);
@@ -1521,23 +1416,27 @@ namespace bgfx { namespace mtl
 
 		void setFrameBuffer(RenderPassDescriptor renderPassDescriptor, FrameBufferHandle _fbh, bool _msaa = true)
 		{
-			if (!isValid(_fbh) )
+			if (!isValid(_fbh) || m_frameBuffers[_fbh.idx].m_swapChain)
 			{
-				if ( NULL != m_backBufferColorMSAA )
+				SwapChainMtl* swapChain =
+					!isValid(_fbh) ?
+						m_mainFrameBuffer.m_swapChain :
+						m_frameBuffers[_fbh.idx].m_swapChain;
+				if ( NULL != swapChain->m_backBufferColorMSAA )
 				{
-					renderPassDescriptor.colorAttachments[0].texture = m_backBufferColorMSAA;
+					renderPassDescriptor.colorAttachments[0].texture = swapChain->m_backBufferColorMSAA;
 					renderPassDescriptor.colorAttachments[0].resolveTexture = ((NULL != m_screenshotTarget) ?
 																			   m_screenshotTarget.m_obj :
-																			   currentDrawable().texture);
+																			   swapChain->currentDrawable().texture);
 				}
 				else
 				{
 					renderPassDescriptor.colorAttachments[0].texture = ((NULL != m_screenshotTarget) ?
 																		m_screenshotTarget.m_obj :
-																		currentDrawable().texture);
+																		swapChain->currentDrawable().texture);
 				}
-				renderPassDescriptor.depthAttachment.texture = m_backBufferDepth;
-				renderPassDescriptor.stencilAttachment.texture = m_backBufferStencil;
+				renderPassDescriptor.depthAttachment.texture = swapChain->m_backBufferDepth;
+				renderPassDescriptor.stencilAttachment.texture = swapChain->m_backBufferStencil;
 			}
 			else
 			{
@@ -1657,7 +1556,7 @@ namespace bgfx { namespace mtl
 				m_samplerDescriptor.lodMinClamp = 0;
 				m_samplerDescriptor.lodMaxClamp = FLT_MAX;
 				m_samplerDescriptor.normalizedCoordinates = TRUE;
-				m_samplerDescriptor.maxAnisotropy =  (0 != (_flags & (BGFX_TEXTURE_MIN_ANISOTROPIC|BGFX_TEXTURE_MAG_ANISOTROPIC) ) ) ? m_maxAnisotropy : 1;
+				m_samplerDescriptor.maxAnisotropy =  (0 != (_flags & (BGFX_TEXTURE_MIN_ANISOTROPIC|BGFX_TEXTURE_MAG_ANISOTROPIC) ) ) ? m_mainFrameBuffer.m_swapChain->m_maxAnisotropy : 1;
 
 				//NOTE: Comparison function can be specified in shader on all metal hw.
 				if ( m_macOS11Runtime || [m_device supportsFeatureSet:(MTLFeatureSet)4/*MTLFeatureSet_iOS_GPUFamily3_v1*/])
@@ -1695,29 +1594,11 @@ namespace bgfx { namespace mtl
 			return m_blitCommandEncoder;
 		}
 
-		id<CAMetalDrawable> currentDrawable()
-		{
-			if (m_drawable == nil)
-			{
-				m_drawable = m_metalLayer.nextDrawable;
-				retain(m_drawable); // keep alive to be useable at 'flip'
-			}
-
-			return m_drawable;
-		}
-
-
 		Device				m_device;
 		OcclusionQueryMTL	m_occlusionQuery;
 		TimerQueryMtl		m_gpuTimer;
 		CommandQueueMtl		m_cmd;
 
-		CAMetalLayer* m_metalLayer;
-		Texture       m_backBufferColorMSAA;
-		Texture       m_backBufferDepth;
-		Texture       m_backBufferStencil;
-		uint32_t      m_backBufferPixelFormatHash;
-		uint32_t      m_maxAnisotropy;
 
 		bool m_iOS9Runtime;
 		bool m_macOS11Runtime;
@@ -1738,6 +1619,7 @@ namespace bgfx { namespace mtl
 		ShaderMtl       m_shaders[BGFX_CONFIG_MAX_SHADERS];
 		ProgramMtl      m_program[BGFX_CONFIG_MAX_PROGRAMS];
 		TextureMtl      m_textures[BGFX_CONFIG_MAX_TEXTURES];
+		FrameBufferMtl  m_mainFrameBuffer;
 		FrameBufferMtl  m_frameBuffers[BGFX_CONFIG_MAX_FRAME_BUFFERS];
 		VertexDecl      m_vertexDecls[BGFX_CONFIG_MAX_VERTEX_DECLS];
 		UniformRegistry m_uniformReg;
@@ -1765,7 +1647,6 @@ namespace bgfx { namespace mtl
 		SamplerDescriptor        m_samplerDescriptor;
 
 		// currently active objects data
-		id <CAMetalDrawable>	m_drawable;
 		bool					m_saveScreenshot;
 		Texture					m_screenshotTarget;
 		ShaderMtl				m_screenshotBlitProgramVsh;
@@ -1995,7 +1876,7 @@ namespace bgfx { namespace mtl
 		murmur.add(independentBlendEnable ? _rgba : 0);
 		if (!isValid(_fbHandle) )
 		{
-			murmur.add(s_renderMtl->m_backBufferPixelFormatHash);
+			murmur.add(s_renderMtl->m_mainFrameBuffer.m_pixelFormatHash);
 		}
 		else
 		{
@@ -2016,12 +1897,16 @@ namespace bgfx { namespace mtl
 
 			uint32_t frameBufferAttachment = 1;
 
-			if (!isValid(_fbHandle) )
+			if (!isValid(_fbHandle) || s_renderMtl->m_frameBuffers[_fbHandle.idx].m_swapChain)
 			{
-				pd.sampleCount = NULL != s_renderMtl->m_backBufferColorMSAA ? s_renderMtl->m_backBufferColorMSAA.sampleCount() : 1;
-				pd.colorAttachments[0].pixelFormat = s_renderMtl->currentDrawable().texture.pixelFormat;
-				pd.depthAttachmentPixelFormat      = s_renderMtl->m_backBufferDepth.m_obj.pixelFormat;
-				pd.stencilAttachmentPixelFormat    = s_renderMtl->m_backBufferStencil.m_obj.pixelFormat;
+				SwapChainMtl* swapChain =
+					!isValid(_fbHandle) ?
+						s_renderMtl->m_mainFrameBuffer.m_swapChain :
+						s_renderMtl->m_frameBuffers[_fbHandle.idx].m_swapChain;
+				pd.sampleCount = NULL != swapChain->m_backBufferColorMSAA ? swapChain->m_backBufferColorMSAA.sampleCount() : 1;
+				pd.colorAttachments[0].pixelFormat = swapChain->currentDrawable().texture.pixelFormat;
+				pd.depthAttachmentPixelFormat      = swapChain->m_backBufferDepth.m_obj.pixelFormat;
+				pd.stencilAttachmentPixelFormat    = swapChain->m_backBufferStencil.m_obj.pixelFormat;
 			}
 			else
 			{
@@ -2677,8 +2562,140 @@ namespace bgfx { namespace mtl
 		}
 	}
 
+	SwapChainMtl::~SwapChainMtl()
+	{
+		MTL_RELEASE(m_backBufferDepth);
+		if (BX_ENABLED(BX_PLATFORM_IOS) )
+		{
+			MTL_RELEASE(m_backBufferStencil);
+		}
+	}
+
+	void SwapChainMtl::init(void* _nwh)
+	{
+		if (NULL != NSClassFromString(@"MTKView") )
+		{
+			MTKView *view = (MTKView *)_nwh;
+			if (NULL != view && [view isKindOfClass:NSClassFromString(@"MTKView")])
+			{
+				m_metalLayer = (CAMetalLayer *)view.layer;
+			}
+		}
+
+		if (NULL != NSClassFromString(@"CAMetalLayer") )
+		{
+			if (NULL == m_metalLayer)
+#if BX_PLATFORM_IOS
+			{
+				if (![_nwh isKindOfClass:NSClassFromString(@"CAMetalLayer")])
+				{
+					BX_WARN(NULL != s_renderMtl->m_device, "Unable to create Metal device. Please set platform data window to a CAMetalLayer");
+					return;
+				}
+				m_metalLayer = (CAMetalLayer *)_nwh;
+			}
+#elif BX_PLATFORM_OSX
+			{
+				NSWindow* nsWindow = (NSWindow*)_nwh;
+				[nsWindow.contentView setWantsLayer:YES];
+				m_metalLayer = [CAMetalLayer layer];
+				[nsWindow.contentView setLayer:m_metalLayer];
+			}
+#endif // BX_PLATFORM_*
+		}
+
+		if (NULL == m_metalLayer)
+		{
+			BX_WARN(NULL != s_renderMtl->m_device, "Unable to create Metal device.");
+			return;
+		}
+
+		m_metalLayer.device      = s_renderMtl->m_device;
+		m_metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+	}
+
+	void SwapChainMtl::resize(FrameBufferMtl &_frameBuffer, uint32_t _width, uint32_t _height, uint32_t _flags)
+	{
+		int sampleCount = s_msaa[(_flags&BGFX_RESET_MSAA_MASK)>>BGFX_RESET_MSAA_SHIFT];
+
+		m_metalLayer.drawableSize = CGSizeMake(_width, _height);
+		m_metalLayer.pixelFormat = (_flags & BGFX_RESET_SRGB_BACKBUFFER)
+								? MTLPixelFormatBGRA8Unorm_sRGB
+								: MTLPixelFormatBGRA8Unorm
+								;
+
+		TextureDescriptor desc = s_renderMtl->m_textureDescriptor;
+
+		desc.textureType = sampleCount > 1 ? MTLTextureType2DMultisample : MTLTextureType2D;
+
+		if (s_renderMtl->m_hasPixelFormatDepth32Float_Stencil8)
+			desc.pixelFormat = MTLPixelFormatDepth32Float_Stencil8;
+		else
+			desc.pixelFormat = MTLPixelFormatDepth32Float;
+
+		desc.width  = _width;
+		desc.height = _height;
+		desc.depth  = 1;
+		desc.mipmapLevelCount = 1;
+		desc.sampleCount = sampleCount;
+		desc.arrayLength = 1;
+		if ( s_renderMtl->m_iOS9Runtime || s_renderMtl->m_macOS11Runtime )
+		{
+			desc.cpuCacheMode = MTLCPUCacheModeDefaultCache;
+			desc.storageMode  = MTLStorageModePrivate;
+			desc.usage		  = MTLTextureUsageRenderTarget;
+		}
+
+		if (NULL != m_backBufferDepth)
+		{
+			release(m_backBufferDepth);
+		}
+		m_backBufferDepth   = s_renderMtl->m_device.newTextureWithDescriptor(desc);
+
+		if (s_renderMtl->m_hasPixelFormatDepth32Float_Stencil8)
+		{
+			m_backBufferStencil = m_backBufferDepth;
+		}
+		else
+		{
+			desc.pixelFormat = MTLPixelFormatStencil8;
+			m_backBufferStencil = s_renderMtl->m_device.newTextureWithDescriptor(desc);
+		}
+
+		if ( sampleCount > 1 )
+		{
+			if (NULL != m_backBufferColorMSAA)
+			{
+				release(m_backBufferColorMSAA);
+			}
+			desc.pixelFormat = m_metalLayer.pixelFormat;
+			m_backBufferColorMSAA = s_renderMtl->m_device.newTextureWithDescriptor(desc);
+		}
+
+		bx::HashMurmur2A murmur;
+		murmur.begin();
+		murmur.add(1);
+		murmur.add((uint32_t)m_metalLayer.pixelFormat);
+		murmur.add((uint32_t)m_backBufferDepth.pixelFormat());
+		murmur.add((uint32_t)m_backBufferStencil.pixelFormat());
+		murmur.add((uint32_t)sampleCount);
+		_frameBuffer.m_pixelFormatHash = murmur.end();
+	}
+
+	id<CAMetalDrawable> SwapChainMtl::currentDrawable()
+	{
+		if (m_drawable == nil)
+		{
+			m_drawable = m_metalLayer.nextDrawable;
+			retain(m_drawable); // keep alive to be useable at 'flip'
+		}
+
+		return m_drawable;
+	}
+
 	void FrameBufferMtl::create(uint8_t _num, const Attachment* _attachment)
 	{
+		m_swapChain = NULL;
 		m_num = 0;
 		m_width = 0;
 		m_height = 0;
@@ -2734,9 +2751,13 @@ namespace bgfx { namespace mtl
 
 	void FrameBufferMtl::create(uint16_t _denseIdx, void* _nwh, uint32_t _width, uint32_t _height, TextureFormat::Enum _depthFormat)
 	{
-		BX_UNUSED(_denseIdx, _nwh, _width, _height, _depthFormat);
+		BX_UNUSED(_depthFormat);
+		m_swapChain = BX_NEW(g_allocator, SwapChainMtl);
+		m_width     = _width;
+		m_height    = _height;
+		m_denseIdx  = _denseIdx;
 
-		BX_WARN(false, "FrameBufferMtl::create not yet implemented");
+		m_swapChain->init(_nwh);
 	}
 
 	void FrameBufferMtl::postReset()
@@ -2747,6 +2768,12 @@ namespace bgfx { namespace mtl
 
 	uint16_t FrameBufferMtl::destroy()
 	{
+		if (NULL != m_swapChain)
+		{
+			BX_DELETE(g_allocator, m_swapChain);
+			m_swapChain = NULL;
+		}
+
 		m_num = 0;
 		m_depthHandle.idx = invalidHandle;
 
@@ -2961,7 +2988,7 @@ namespace bgfx { namespace mtl
 			if ( NULL == m_screenshotTarget)
 			{
 				m_textureDescriptor.textureType = MTLTextureType2D;
-				m_textureDescriptor.pixelFormat = m_metalLayer.pixelFormat;
+				m_textureDescriptor.pixelFormat = m_mainFrameBuffer.m_swapChain->m_metalLayer.pixelFormat;
 				m_textureDescriptor.width  = m_resolution.m_width;
 				m_textureDescriptor.height = m_resolution.m_height;
 				m_textureDescriptor.depth  = 1;
@@ -3255,7 +3282,7 @@ namespace bgfx { namespace mtl
 								? MTLLoadActionClear
 								: MTLLoadActionLoad
 								;
-								depthAttachment.storeAction = NULL != m_backBufferColorMSAA ? MTLStoreActionDontCare : MTLStoreActionStore;
+								depthAttachment.storeAction = NULL != m_mainFrameBuffer.m_swapChain->m_backBufferColorMSAA ? MTLStoreActionDontCare : MTLStoreActionStore;
 							}
 
 							RenderPassStencilAttachmentDescriptor stencilAttachment = renderPassDescriptor.stencilAttachment;
@@ -3266,7 +3293,7 @@ namespace bgfx { namespace mtl
 								? MTLLoadActionClear
 								: MTLLoadActionLoad
 								;
-								stencilAttachment.storeAction = NULL != m_backBufferColorMSAA ? MTLStoreActionDontCare : MTLStoreActionStore;
+								stencilAttachment.storeAction = NULL != m_mainFrameBuffer.m_swapChain->m_backBufferColorMSAA ? MTLStoreActionDontCare : MTLStoreActionStore;
 							}
 						}
 						else
@@ -3865,7 +3892,7 @@ namespace bgfx { namespace mtl
 		if ( m_screenshotTarget )
 		{
 			RenderPassDescriptor renderPassDescriptor = newRenderPassDescriptor();
-			renderPassDescriptor.colorAttachments[0].texture = currentDrawable().texture;
+			renderPassDescriptor.colorAttachments[0].texture = m_mainFrameBuffer.m_swapChain->currentDrawable().texture;
 			renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
 			rce =  m_commandBuffer.renderCommandEncoderWithDescriptor(renderPassDescriptor);
