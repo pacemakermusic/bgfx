@@ -2711,12 +2711,6 @@ namespace bgfx { namespace gl
 				{
 					m_ovr.makeRenderTargetActive();
 				}
-				else
-				{
-					m_currentFbo = 0;
-				}
-
-				GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, m_currentFbo) );
 			}
 
 			if (recenter)
@@ -2769,7 +2763,7 @@ namespace bgfx { namespace gl
 				}
 				else
 				{
-					m_currentFbo = m_msaaBackBufferFbo;
+					GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, m_msaaBackBufferFbo) );
 				}
 
 				if (m_srgbWriteControlSupport)
@@ -2792,16 +2786,13 @@ namespace bgfx { namespace gl
 				{
 					m_glctx.makeCurrent(frameBuffer.m_swapChain);
 					frameBuffer.m_needPresent = true;
-					m_currentFbo = 0;
 				}
 				else
 				{
 					m_glctx.makeCurrent(NULL);
-					m_currentFbo = frameBuffer.m_fbo[0];
+					GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer.m_fbo[0]) );
 				}
 			}
-
-			GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, m_currentFbo) );
 
 			m_fbh       = _fbh;
 			m_fbDiscard = _discard;
@@ -3491,8 +3482,6 @@ namespace bgfx { namespace gl
 		const char* m_renderer;
 		const char* m_version;
 		const char* m_glslVersion;
-
-		GLuint m_currentFbo;
 
 		VR m_ovr;
 #if BGFX_CONFIG_USE_OVR
