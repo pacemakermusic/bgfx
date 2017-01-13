@@ -832,7 +832,7 @@ namespace bgfx { namespace gl
 		{ "OES_texture_half_float_linear",            false,                             true  },
 		{ "OES_texture_stencil8",                     false,                             true  },
 		{ "OES_texture_storage_multisample_2d_array", false,                             true  },
-		{ "OES_vertex_array_object",                  false,                             !BX_PLATFORM_IOS },
+		{ "OES_vertex_array_object",                  false,                             true  },
 		{ "OES_vertex_half_float",                    false,                             true  },
 		{ "OES_vertex_type_10_10_10_2",               false,                             true  },
 
