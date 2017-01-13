@@ -1410,7 +1410,6 @@ namespace bgfx { namespace gl
 	{
 		RendererContextGL()
 			: m_numWindows(1)
-			, m_rtMsaa(false)
 			, m_fbDiscard(BGFX_CLEAR_NONE)
 			, m_capture(NULL)
 			, m_captureSize(0)
@@ -2761,7 +2760,7 @@ namespace bgfx { namespace gl
 				) );
 		}
 
-		uint32_t setFrameBuffer(FrameBufferHandle _fbh, uint32_t _height, uint16_t _discard = BGFX_CLEAR_NONE, bool _msaa = true)
+		uint32_t setFrameBuffer(FrameBufferHandle _fbh, uint32_t _height, uint16_t _discard = BGFX_CLEAR_NONE)
 		{
 			if (isValid(m_fbh)
 			&&  m_fbh.idx != _fbh.idx)
@@ -2821,7 +2820,6 @@ namespace bgfx { namespace gl
 
 			m_fbh       = _fbh;
 			m_fbDiscard = _discard;
-			m_rtMsaa    = _msaa;
 
 			return _height;
 		}
@@ -3466,7 +3464,6 @@ namespace bgfx { namespace gl
 		SamplerStateCache m_samplerStateCache;
 
 		TextVideoMem m_textVideoMem;
-		bool m_rtMsaa;
 
 		FrameBufferHandle m_fbh;
 		uint16_t m_fbDiscard;
