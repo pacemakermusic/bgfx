@@ -1712,7 +1712,6 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 	{
 		RendererContextGL()
 			: m_numWindows(1)
-			, m_rtMsaa(false)
 			, m_fbDiscard(BGFX_CLEAR_NONE)
 			, m_capture(NULL)
 			, m_captureSize(0)
@@ -3173,7 +3172,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 				) );
 		}
 
-		uint32_t setFrameBuffer(FrameBufferHandle _fbh, uint32_t _height, uint16_t _discard = BGFX_CLEAR_NONE, bool _msaa = true)
+		uint32_t setFrameBuffer(FrameBufferHandle _fbh, uint32_t _height, uint16_t _discard = BGFX_CLEAR_NONE)
 		{
 			if (isValid(m_fbh)
 			&&  m_fbh.idx != _fbh.idx)
@@ -3229,7 +3228,6 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 			m_fbh       = _fbh;
 			m_fbDiscard = _discard;
-			m_rtMsaa    = _msaa;
 
 			return _height;
 		}
@@ -3861,7 +3859,6 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 		SamplerStateCache m_samplerStateCache;
 
 		TextVideoMem m_textVideoMem;
-		bool m_rtMsaa;
 
 		FrameBufferHandle m_fbh;
 		uint16_t m_fbDiscard;
