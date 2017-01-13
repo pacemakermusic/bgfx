@@ -915,8 +915,12 @@ namespace bgfx { namespace mtl
 			if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
 			{
 				bx::strlcpy(&s_viewName[_id][BGFX_CONFIG_MAX_VIEW_NAME_RESERVED]
-						, _name
+						, "########## "
 						, BX_COUNTOF(s_viewName[0])-BGFX_CONFIG_MAX_VIEW_NAME_RESERVED
+						);
+				bx::strlcpy(&s_viewName[_id][BGFX_CONFIG_MAX_VIEW_NAME_RESERVED+11]
+						, _name
+						, BX_COUNTOF(s_viewName[0])-BGFX_CONFIG_MAX_VIEW_NAME_RESERVED-11
 						);
 			}
 		}
@@ -926,11 +930,23 @@ namespace bgfx { namespace mtl
 			memcpy(m_uniforms[_loc], _data, _size);
 		}
 
+//#define GROUP_VIEW_MARKERS
 		void setMarker(const char* _marker, uint32_t /*_size*/) BX_OVERRIDE
 		{
 			if (BX_ENABLED(BGFX_CONFIG_DEBUG_MTL) )
 			{
+#ifndef GROUP_VIEW_MARKERS
+				if (strcmp(_marker, "pop") )
+				{
+					m_renderCommandEncoder.pushDebugGroup(_marker);
+				}
+				else
+				{
+					m_renderCommandEncoder.popDebugGroup();
+				}
+#else
 				m_renderCommandEncoder.insertDebugSignpost(_marker);
+#endif
 			}
 		}
 
@@ -3331,12 +3347,16 @@ namespace bgfx { namespace mtl
 
 					if (BX_ENABLED(BGFX_CONFIG_DEBUG_MTL) )
 					{
+#ifdef GROUP_VIEW_MARKERS
 						if (item != 1)
 						{
 							rce.popDebugGroup();
 						}
 
 						rce.pushDebugGroup(s_viewName[view]);
+#else
+						rce.insertDebugSignpost(s_viewName[view]);
+#endif
 					}
 
 					MTLViewport vp;

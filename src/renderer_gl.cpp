@@ -2556,7 +2556,15 @@ namespace bgfx { namespace gl
 
 		void updateViewName(uint8_t _id, const char* _name) BX_OVERRIDE
 		{
+			if (!BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
+			{
+				return;
+			}
 			bx::strlcpy(&s_viewName[_id][BGFX_CONFIG_MAX_VIEW_NAME_RESERVED]
+				, "########## "
+				, BX_COUNTOF(s_viewName[0])-BGFX_CONFIG_MAX_VIEW_NAME_RESERVED
+				);
+			bx::strlcpy(&s_viewName[_id][BGFX_CONFIG_MAX_VIEW_NAME_RESERVED+11]
 				, _name
 				, BX_COUNTOF(s_viewName[0])-BGFX_CONFIG_MAX_VIEW_NAME_RESERVED
 				);
@@ -2567,9 +2575,25 @@ namespace bgfx { namespace gl
 			memcpy(m_uniforms[_loc], _data, _size);
 		}
 
+//#define GROUP_VIEW_MARKERS
 		void setMarker(const char* _marker, uint32_t _size) BX_OVERRIDE
 		{
+			if (!BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
+			{
+				return;
+			}
+#ifndef GROUP_VIEW_MARKERS
+			if (strcmp(_marker, "pop"))
+			{
+				GL_CHECK(glPushGroupMarker(0, _marker) );
+			}
+			else
+			{
+				GL_CHECK(glPopGroupMarker() );
+			}
+#else
 			GL_CHECK(glInsertEventMarker(_size, _marker) );
+#endif
 		}
 
 		void submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter) BX_OVERRIDE;
@@ -6275,6 +6299,29 @@ namespace bgfx { namespace gl
 					view = key.m_view;
 					programIdx = invalidHandle;
 
+					if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
+					{
+						char* viewName = s_viewName[view];
+						viewName[3] = ' ';
+						if (viewRestart)
+						{
+							viewName[4] = eye ? 'R' : 'L';
+						}
+						else
+						{
+							viewName[4] = ' ';
+						}
+#ifdef GROUP_VIEW_MARKERS
+						if (item != 1)
+						{
+							GL_CHECK(glPopGroupMarker() );
+						}
+						GL_CHECK(glPushGroupMarker(0, viewName) );
+#else
+						GL_CHECK(glInsertEventMarker(0, viewName) );
+#endif
+					}
+
 					if (_render->m_fb[view].idx != fbh.idx)
 					{
 						fbh = _render->m_fb[view];
@@ -6314,14 +6361,6 @@ namespace bgfx { namespace gl
 					viewState.m_rect = _render->m_rect[view];
 					if (viewRestart)
 					{
-						if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
-						{
-							char* viewName = s_viewName[view];
-							viewName[3] = ' ';
-							viewName[4] = eye ? 'R' : 'L';
-							GL_CHECK(glInsertEventMarker(0, viewName) );
-						}
-
 						if (m_ovr.isEnabled() )
 						{
 							m_ovr.getViewport(eye, &viewState.m_rect);
@@ -6330,16 +6369,6 @@ namespace bgfx { namespace gl
 						{
 							viewState.m_rect.m_x = eye * (viewState.m_rect.m_width+1)/2;
 							viewState.m_rect.m_width /= 2;
-						}
-					}
-					else
-					{
-						if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
-						{
-							char* viewName = s_viewName[view];
-							viewName[3] = ' ';
-							viewName[4] = ' ';
-							GL_CHECK(glInsertEventMarker(0, viewName) );
 						}
 					}
 
