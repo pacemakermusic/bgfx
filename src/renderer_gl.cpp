@@ -2957,8 +2957,16 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 		void updateViewName(ViewId _id, const char* _name) override
 		{
+			if (!BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
+			{
+				return;
+			}
 			bx::strCopy(&s_viewName[_id][BGFX_CONFIG_MAX_VIEW_NAME_RESERVED]
-				, BX_COUNTOF(s_viewName[0])-BGFX_CONFIG_MAX_VIEW_NAME_RESERVED
+                        , BX_COUNTOF(s_viewName[0])-BGFX_CONFIG_MAX_VIEW_NAME_RESERVED
+				, "########## "
+				);
+			bx::strCopy(&s_viewName[_id][BGFX_CONFIG_MAX_VIEW_NAME_RESERVED+11]
+                        , BX_COUNTOF(s_viewName[0])-BGFX_CONFIG_MAX_VIEW_NAME_RESERVED
 				, _name
 				);
 		}
@@ -2968,9 +2976,25 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 			bx::memCopy(m_uniforms[_loc], _data, _size);
 		}
 
-		void setMarker(const char* _marker, uint32_t _size) override
+//#define GROUP_VIEW_MARKERS
+        void setMarker(const char* _marker, uint32_t _size) override
 		{
+			if (!BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
+			{
+				return;
+			}
+#ifndef GROUP_VIEW_MARKERS
+			if (strcmp(_marker, "pop"))
+			{
+				GL_CHECK(glPushGroupMarker(0, _marker) );
+			}
+			else
+			{
+				GL_CHECK(glPopGroupMarker() );
+			}
+#else
 			GL_CHECK(glInsertEventMarker(_size, _marker) );
+#endif
 		}
 
 		void invalidateOcclusionQuery(OcclusionQueryHandle _handle) override
@@ -6393,7 +6417,30 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 					view = key.m_view;
 					programIdx = kInvalidHandle;
 
-					if (_render->m_view[view].m_fbh.idx != fbh.idx)
+					if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
+					{
+						char* viewName = s_viewName[view];
+						viewName[3] = ' ';
+						if (viewRestart)
+						{
+							viewName[4] = eye ? 'R' : 'L';
+						}
+						else
+						{
+							viewName[4] = ' ';
+						}
+#ifdef GROUP_VIEW_MARKERS
+						if (item != 1)
+						{
+							GL_CHECK(glPopGroupMarker() );
+						}
+						GL_CHECK(glPushGroupMarker(0, viewName) );
+#else
+						GL_CHECK(glInsertEventMarker(0, viewName) );
+#endif
+					}
+
+                    if (_render->m_view[view].m_fbh.idx != fbh.idx)
 					{
 						fbh = _render->m_view[view].m_fbh;
 						resolutionHeight = _render->m_resolution.height;
@@ -6428,26 +6475,8 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 					viewState.m_rect = _render->m_view[view].m_rect;
 					if (viewRestart)
 					{
-						if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
-						{
-							char* viewName = s_viewName[view];
-							viewName[3] = ' ';
-							viewName[4] = eye ? 'R' : 'L';
-							GL_CHECK(glInsertEventMarker(0, viewName) );
-						}
-
 						viewState.m_rect.m_x = eye * (viewState.m_rect.m_width+1)/2;
 						viewState.m_rect.m_width /= 2;
-					}
-					else
-					{
-						if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
-						{
-							char* viewName = s_viewName[view];
-							viewName[3] = ' ';
-							viewName[4] = ' ';
-							GL_CHECK(glInsertEventMarker(0, viewName) );
-						}
 					}
 
 					const Rect& scissorRect = _render->m_view[view].m_scissor;
