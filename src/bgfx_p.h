@@ -1627,7 +1627,7 @@ namespace bgfx
 			Binding& bind = m_draw.m_bind[_stage];
 			bind.m_idx    = _handle.idx;
 			bind.m_type   = uint8_t(Binding::Texture);
-			bind.m_un.m_draw.m_textureFlags = (_flags&BGFX_TEXTURE_INTERNAL_DEFAULT_SAMPLER)
+			bind.m_un.m_draw.m_textureFlags = (_flags&BGFX_TEXTURE_INTERNAL_DEFAULT_SAMPLER && _flags != UINT32_MAX)
 				? BGFX_TEXTURE_INTERNAL_DEFAULT_SAMPLER
 				: _flags
 				;
