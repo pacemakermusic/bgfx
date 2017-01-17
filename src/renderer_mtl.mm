@@ -3453,17 +3453,14 @@ namespace bgfx { namespace mtl
 					{
 						Rect scissorRect;
 						scissorRect.intersect(viewScissorRect, _render->m_rectCache.m_cache[scissor]);
-						if (scissorRect.isZeroArea() )
-						{
-							continue;
-						}
-
-						rc.x      = scissorRect.m_x;
-						rc.y      = scissorRect.m_y;
+						rc.x   = scissorRect.m_x;
+						rc.y    = scissorRect.m_y;
 						rc.width  = scissorRect.m_width;
 						rc.height = scissorRect.m_height;
-					}
 
+						if ( rc.width == 0 || rc.height == 0 )
+							continue;
+					}
 					rce.setScissorRect(rc);
 				}
 
