@@ -1298,7 +1298,8 @@ public:
 
 	bool update() override
 	{
-		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
+        float scale;
+		if (!entry::processEvents(m_width, m_height, scale, m_debug, m_reset, &m_mouseState) )
 		{
 			imguiBeginFrame(m_mouseState.m_mx
 				,  m_mouseState.m_my

@@ -549,8 +549,9 @@ public:
 		const uint32_t ypitch = DIMS;
 		const uint32_t zpitch = DIMS*DIMS;
 		const float invdim = 1.0f/float(DIMS-1);
+        float scale;
 
-		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
+		if (!entry::processEvents(m_width, m_height, scale, m_debug, m_reset, &m_mouseState) )
 		{
 			imguiBeginFrame(m_mouseState.m_mx
 				,  m_mouseState.m_my
