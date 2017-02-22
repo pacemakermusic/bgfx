@@ -155,6 +155,7 @@ namespace entry
 
 		uint32_t m_width;
 		uint32_t m_height;
+        float m_scale;
 	};
 
 	struct WindowEvent : public Event
@@ -250,11 +251,12 @@ namespace entry
 			m_queue.push(ev);
 		}
 
-		void postSizeEvent(WindowHandle _handle, uint32_t _width, uint32_t _height)
+		void postSizeEvent(WindowHandle _handle, uint32_t _width, uint32_t _height, float _scale = 1)
 		{
 			SizeEvent* ev = new SizeEvent(_handle);
 			ev->m_width  = _width;
 			ev->m_height = _height;
+            ev->m_scale = _scale;
 			m_queue.push(ev);
 		}
 

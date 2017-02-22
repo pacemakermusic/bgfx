@@ -1255,7 +1255,8 @@ class ExampleNanoVG : public entry::AppI
 
 	bool update() BX_OVERRIDE
 	{
-		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
+        float scale;
+		if (!entry::processEvents(m_width, m_height, scale, m_debug, m_reset, &m_mouseState) )
 		{
 			int64_t now = bx::getHPCounter();
 			const double freq = double(bx::getHPFrequency() );

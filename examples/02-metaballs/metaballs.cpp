@@ -530,8 +530,9 @@ class ExampleMetaballs : public entry::AppI
 		const uint32_t ypitch = DIMS;
 		const uint32_t zpitch = DIMS*DIMS;
 		const float invdim = 1.0f/float(DIMS-1);
+        float scale;
 
-		if (!entry::processEvents(m_width, m_height, m_debug, m_reset) )
+		if (!entry::processEvents(m_width, m_height, scale, m_debug, m_reset) )
 		{
 			// Set view 0 default viewport.
 			bgfx::setViewRect(0, 0, 0, uint16_t(m_width), uint16_t(m_height) );
