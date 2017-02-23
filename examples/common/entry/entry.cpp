@@ -581,7 +581,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				}
 			}
 
-			inputProcess();
+			inputProcess(ev);
 
 		} while (NULL != ev);
 
@@ -733,7 +733,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				}
 			}
 
-			inputProcess();
+			inputProcess(ev);
 
 		} while (NULL != ev);
 

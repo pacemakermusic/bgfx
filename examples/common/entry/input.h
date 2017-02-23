@@ -6,7 +6,9 @@
 #ifndef INPUT_H_HEADER_GUARD
 #define INPUT_H_HEADER_GUARD
 
-#include "entry.h"
+#include "entry_p.h"
+
+typedef void (*RawInputFn)(void* _userData, const entry::Event* _event);
 
 typedef void (*InputBindingFn)(const void* _userData);
 
@@ -46,13 +48,16 @@ void inputInit();
 void inputShutdown();
 
 ///
+void inputSetRawEventHandler(void* _userData, RawInputFn _rawFunction);
+
+///
 void inputAddBindings(const char* _name, const InputBinding* _bindings);
 
 ///
 void inputRemoveBindings(const char* _name);
 
 ///
-void inputProcess();
+void inputProcess(const entry::Event* _event);
 
 ///
 void inputSetKeyState(entry::Key::Enum  _key, uint8_t _modifiers, bool _down);
