@@ -187,13 +187,21 @@ struct Gamepad
 
 struct Input
 {
-	Input()
+	Input():
+		m_userData(NULL),
+		m_rawFunction(NULL)
 	{
 		reset();
 	}
 
 	~Input()
 	{
+	}
+
+	void setRawEventHandler(void* _userData, RawInputFn _rawFunction)
+	{
+		m_userData = _userData;
+		m_rawFunction = _rawFunction;
 	}
 
 	void addBindings(const char* _name, const InputBinding* _bindings)
@@ -258,8 +266,12 @@ struct Input
 		}
 	}
 
-	void process()
+	void process(const entry::Event* _event)
 	{
+		if (_event && m_rawFunction)
+		{
+			m_rawFunction(m_userData, _event);
+		}
 		for (InputBindingMap::const_iterator it = m_inputBindingsMap.begin(); it != m_inputBindingsMap.end(); ++it)
 		{
 			process(it->second);
@@ -276,6 +288,8 @@ struct Input
 		}
 	}
 
+	void* m_userData;
+	RawInputFn m_rawFunction;
 	typedef stl::unordered_map<stl::string, const InputBinding*> InputBindingMap;
 	InputBindingMap m_inputBindingsMap;
 	InputKeyboard m_keyboard;
@@ -295,6 +309,11 @@ void inputShutdown()
 	BX_DELETE(entry::getAllocator(), s_input);
 }
 
+void inputSetRawEventHandler(void* _userData, RawInputFn _rawFunction)
+{
+	s_input->setRawEventHandler(_userData, _rawFunction);
+}
+
 void inputAddBindings(const char* _name, const InputBinding* _bindings)
 {
 	s_input->addBindings(_name, _bindings);
@@ -305,9 +324,9 @@ void inputRemoveBindings(const char* _name)
 	s_input->removeBindings(_name);
 }
 
-void inputProcess()
+void inputProcess(const entry::Event* _event)
 {
-	s_input->process();
+	s_input->process(_event);
 }
 
 void inputSetMouseResolution(uint16_t _width, uint16_t _height)

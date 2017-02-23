@@ -761,7 +761,7 @@ restart:
 				}
 			}
 
-			inputProcess();
+			inputProcess(ev);
 
 		} while (NULL != ev);
 
@@ -923,7 +923,7 @@ restart:
 				}
 			}
 
-			inputProcess();
+			inputProcess(ev);
 
 		} while (NULL != ev);
 
