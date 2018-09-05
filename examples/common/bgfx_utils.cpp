@@ -694,7 +694,7 @@ Args::Args(int _argc, const char* const* _argv)
 			m_type = bgfx::RendererType::Direct3D12;
 		}
 	}
-	else if (BX_ENABLED(BX_PLATFORM_OSX) )
+	else if (BX_ENABLED(BX_PLATFORM_OSX|BX_PLATFORM_IOS) )
 	{
 		if (cmdLine.hasArg("mtl") )
 		{
