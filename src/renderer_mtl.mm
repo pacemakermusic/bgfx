@@ -2831,7 +2831,7 @@ namespace bgfx { namespace mtl
                 if (NULL == metalLayer
                     || ![metalLayer isKindOfClass:NSClassFromString(@"CAMetalLayer")])
                 {
-                    BX_WARN(NULL != m_device, "Unable to create Metal device. Please set platform data window to a CAMetalLayer");
+                    BX_WARN(NULL != metalLayer, "Unable to create Metal device. Please set platform data window to a CAMetalLayer");
                     return;
                 }
 
