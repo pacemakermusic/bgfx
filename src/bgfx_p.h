@@ -17,6 +17,9 @@
 #	define BX_WARN  _BX_WARN
 #	define BX_CHECK _BX_CHECK
 #	define BX_CONFIG_ALLOCATOR_DEBUG 1
+#elif !defined(NDEBUG)
+#    define BX_WARN  _BX_WARN
+#    define BX_CHECK _BX_CHECK
 #endif // BGFX_CONFIG_DEBUG
 
 #include <bgfx/bgfx.h>
@@ -85,7 +88,7 @@ namespace bgfx
 				BX_MACRO_BLOCK_BEGIN                              \
 					if (!BX_IGNORE_C4127(_condition) )            \
 					{                                             \
-						BX_TRACE("WARN " _format, ##__VA_ARGS__); \
+						_BX_TRACE("WARN " _format, ##__VA_ARGS__); \
 					}                                             \
 				BX_MACRO_BLOCK_END
 
@@ -93,7 +96,7 @@ namespace bgfx
 				BX_MACRO_BLOCK_BEGIN                                                                                \
 					if (!BX_IGNORE_C4127(_condition) )                                                              \
 					{                                                                                               \
-						BX_TRACE("CHECK " _format, ##__VA_ARGS__);                                                  \
+						_BX_TRACE("CHECK " _format, ##__VA_ARGS__);                                                  \
 						bgfx::fatal(__FILE__, uint16_t(__LINE__), bgfx::Fatal::DebugCheck, _format, ##__VA_ARGS__); \
 					}                                                                                               \
 				BX_MACRO_BLOCK_END
