@@ -651,7 +651,7 @@ restart:
 
 	WindowState s_window[ENTRY_CONFIG_MAX_WINDOWS];
 
-	bool processEvents(uint32_t& _width, uint32_t& _height, uint32_t& _debug, uint32_t& _reset, MouseState* _mouse)
+	bool processEvents(uint32_t& _width, uint32_t& _height, float& _scale, uint32_t& _debug, uint32_t& _reset, MouseState* _mouse)
 	{
 		s_debug = _debug;
 		s_reset = _reset;
@@ -739,6 +739,7 @@ restart:
 						handle  = size->m_handle;
 						_width  = size->m_width;
 						_height = size->m_height;
+						_scale = size->m_scale;
 						_reset  = !s_reset; // force reset
 					}
 					break;
@@ -990,7 +991,7 @@ restart:
 
 } // namespace entry
 
-extern "C" bool entry_process_events(uint32_t* _width, uint32_t* _height, uint32_t* _debug, uint32_t* _reset)
+extern "C" bool entry_process_events(uint32_t* _width, uint32_t* _height, float* _scale, uint32_t* _debug, uint32_t* _reset)
 {
-	return entry::processEvents(*_width, *_height, *_debug, *_reset, NULL);
+	return entry::processEvents(*_width, *_height, *_scale, *_debug, *_reset, NULL);
 }

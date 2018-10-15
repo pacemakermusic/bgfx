@@ -36,13 +36,13 @@ namespace entry
 
 	struct Context
 	{
-		Context(uint32_t _width, uint32_t _height)
+		Context(uint32_t _width, uint32_t _height, float _scale)
 		{
 			const char* const argv[1] = { "ios" };
 			m_mte.m_argc = 1;
 			m_mte.m_argv = argv;
 
-			m_eventQueue.postSizeEvent(s_defaultWindow, _width, _height);
+			m_eventQueue.postSizeEvent(s_defaultWindow, _width, _height, _scale);
 
 			// Prevent render thread creation.
 			bgfx::renderFrame();
@@ -216,7 +216,7 @@ static	void* m_device = NULL;
 {
 	uint32_t frameW = (uint32_t)(self.contentScaleFactor * self.frame.size.width);
 	uint32_t frameH = (uint32_t)(self.contentScaleFactor * self.frame.size.height);
-	s_ctx->m_eventQueue.postSizeEvent(s_defaultWindow, frameW, frameH);
+	s_ctx->m_eventQueue.postSizeEvent(s_defaultWindow, frameW, frameH, self.contentScaleFactor);
 }
 
 - (void)start
@@ -329,7 +329,7 @@ static	void* m_device = NULL;
 	float scaleFactor = [[UIScreen mainScreen] scale];
 	[m_view setContentScaleFactor: scaleFactor ];
 
-	s_ctx = new Context((uint32_t)(scaleFactor*rect.size.width), (uint32_t)(scaleFactor*rect.size.height));
+	s_ctx = new Context((uint32_t)(scaleFactor*rect.size.width), (uint32_t)(scaleFactor*rect.size.height), scaleFactor);
 	return YES;
 }
 
