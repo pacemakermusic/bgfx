@@ -41,6 +41,7 @@ namespace bgfx { namespace gl
 				];
 
 			[EAGLContext setCurrentContext:_context];
+			[CATransaction flush];
 
 			m_layer = _layer;
 			createFrameBuffers();
